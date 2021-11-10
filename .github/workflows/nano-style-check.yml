@@ -33,3 +33,5 @@ jobs:
       # Runs a single command using the runners shell
       - name: Style checking
         run: bash python/nano/test/run-nano-codestyle-test.sh
+        env:
+            ANALYTICS_ZOO_ROOT: ${{ github.workspace }}

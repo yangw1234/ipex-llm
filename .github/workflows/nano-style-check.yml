@@ -32,4 +32,4 @@ jobs:
       
       # Runs a single command using the runners shell
       - name: Style checking
-        run: ANALYTICS_ZOO_ROOT=$GITHUB_WORKSPACE; ./python/nano/test/run-nano-codestyle-test.sh
+        run: ANALYTICS_ZOO_ROOT=$GITHUB_WORKSPACE; ./BigDL/python/nano/test/run-nano-codestyle-test.sh

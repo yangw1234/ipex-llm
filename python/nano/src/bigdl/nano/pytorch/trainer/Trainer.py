@@ -43,6 +43,10 @@ class Trainer(pl.Trainer):
             automatically and evenly distributed among processes.
         """
 
+        
+        
+        
+        
         # Check keyword arguments
         if "accelerator" in kwargs:
             warning(f"""Accelerator will be specified by bigdl-nano,

@@ -94,6 +94,7 @@ def _load_shared_library(lib_base_name: str):
                 return ctypes.CDLL(str(_lib_path), **cdll_args)
             except Exception as e:
                 invalidInputError(False, f"Failed to load shared library '{_lib_path}': {e}.")
+    print(_lib_paths)
 
     invalidInputError(False, f"Shared library with base name '{lib_base_name}' not found.")
 
@@ -1027,6 +1028,51 @@ _lib.ggml_compute_forward_mul_mat_q_fp32.argtypes = [
     ctypes.c_void_p
 ]
 _lib.ggml_compute_forward_mul_mat_q_fp32.restype = None
+
+
+def ggml_compute_forward_flash_attention(q_ne,  # type: ctypes.Array[ctypes.c_int64]
+                                         q_nb,
+                                         q_data,  # type: ctypes.c_void_p
+                                         k_ne,  # type: ctypes.Array[ctypes.c_int64]
+                                         k_nb,
+                                         k_data,  # type: ctypes.c_void_p
+                                         v_ne,  # type: ctypes.Array[ctypes.c_int64]
+                                         v_nb,
+                                         v_data,  # type: ctypes.c_void_p
+                                         masked, # type: bool
+                                         output_ne, # type: ctypes.Array[ctypes.c_int64]
+                                         output_data,  # type: ctypes.c_void_p
+                                        ) -> None:
+
+    return _lib.ggml_compute_forward_flash_attention(q_ne,
+                                                     q_nb,
+                                                     q_data,  # type: ctypes.c_void_p
+                                                     k_ne,  # type: ctypes.Array[ctypes.c_int64]
+                                                     k_nb,
+                                                     k_data,  # type: ctypes.c_void_p
+                                                     v_ne,  # type: ctypes.Array[ctypes.c_int64]
+                                                     v_nb,
+                                                     v_data,  # type: ctypes.c_void_p
+                                                     masked, # type: bool
+                                                     output_ne, # type: ctypes.Array[ctypes.c_int64]
+                                                     output_data,)  # type: ctypes.c_void_p
+
+
+_lib.ggml_compute_forward_flash_attention.argtypes = [
+    ctypes.POINTER(ctypes.c_int64),
+    ctypes.POINTER(ctypes.c_int64),
+    ctypes.c_void_p,
+    ctypes.POINTER(ctypes.c_int64),
+    ctypes.POINTER(ctypes.c_int64),
+    ctypes.c_void_p,
+    ctypes.POINTER(ctypes.c_int64),
+    ctypes.POINTER(ctypes.c_int64),
+    ctypes.c_void_p,
+    ctypes.c_bool,
+    ctypes.POINTER(ctypes.c_int64),
+    ctypes.c_void_p
+]
+_lib.ggml_compute_forward_flash_attention.restype = None
 ###################################################################################################
 
 

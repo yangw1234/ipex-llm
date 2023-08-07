@@ -134,12 +134,12 @@ def chatglm_attention_forward_8eb45c(
                                                  self.num_attention_heads_per_partition,
                                                  key_length,
                                                  self.hidden_size_per_attention_head))
-        value_layer = value_layer.permute(1, 2, 0, 3).unsqueeze(-3)
+        value_layer = value_layer.permute(1, 2, 3, 0).unsqueeze(-3)
         value_layer = value_layer.expand(-1, -1, query_group_size, -1, -1)
         value_layer = value_layer.contiguous().view((batch_size,
                                                      self.num_attention_heads_per_partition,
-                                                     key_length,
-                                                     self.hidden_size_per_attention_head))
+                                                     self.hidden_size_per_attention_head,
+                                                     key_length))
 
     # adjust key and value for inference
     if kv_cache is not None:
@@ -154,15 +154,15 @@ def chatglm_attention_forward_8eb45c(
                                          self.hidden_size_per_attention_head,),
                              torch.empty(batch_size,
                                          self.num_attention_heads_per_partition,
-                                         self.max_cache_length,
-                                         self.hidden_size_per_attention_head,))
+                                         self.hidden_size_per_attention_head,
+                                         self.max_cache_length,))
             self.kv_cache[0][:, :, :past_length, :] = cache_k
-            self.kv_cache[1][:, :, :past_length, :] = cache_v
+            self.kv_cache[1][:, :, :, :past_length] = cache_v
         self.kv_cache[0][:, :, past_length:past_length + cur_length, :] = key_layer
-        self.kv_cache[1][:, :, past_length:past_length + cur_length, :] = value_layer
+        self.kv_cache[1][:, :, :, past_length:past_length + cur_length] = value_layer
 
         key_layer = self.kv_cache[0][:, :, :past_length + cur_length, :]
-        value_layer = self.kv_cache[1][:, :, :past_length + cur_length, :]
+        value_layer = self.kv_cache[1][:, :, :, :past_length + cur_length]
 
     elif use_cache:
         self.max_cache_length = max(KV_CACHE_ALLOC_MIN_LENGTH, cur_length) \
@@ -170,9 +170,9 @@ def chatglm_attention_forward_8eb45c(
         self.kv_cache = (torch.empty(batch_size, self.num_attention_heads_per_partition,
                                      self.max_cache_length, self.hidden_size_per_attention_head,),
                          torch.empty(batch_size, self.num_attention_heads_per_partition,
-                                     self.max_cache_length, self.hidden_size_per_attention_head,))
+                                     self.hidden_size_per_attention_head, self.max_cache_length,))
         self.kv_cache[0][:, :, :cur_length, :] = key_layer
-        self.kv_cache[1][:, :, :cur_length, :] = value_layer
+        self.kv_cache[1][:, :, :, :cur_length] = value_layer
 
     if use_cache:
         kv_cache = (key_layer, value_layer)
@@ -196,20 +196,34 @@ def chatglm_attention_forward_8eb45c(
 
 def core_attn_forward_8eb45c(self, query_layer, key_layer, value_layer, attention_mask):
     pytorch_major_version = int(torch.__version__.split('.')[0])
-    if query_layer.size(0) > 1 and pytorch_major_version >= 2:
-        query_layer = query_layer.permute(1, 2, 0, 3)
+    if pytorch_major_version >= 2:
+        query_layer = query_layer.permute(1, 2, 0, 3).contiguous()
         if attention_mask is None and query_layer.shape[2] == key_layer.shape[2]:
+            
             context_layer = torch.nn.functional.scaled_dot_product_attention(query_layer,
                                                                              key_layer,
-                                                                             value_layer,
+                                                                             value_layer.transpose(-1, -2),
                                                                              is_causal=True)
+            # from bigdl.llm.transformers.models.flash_attention import ggml_flash_attn
+            # context_layer = ggml_flash_attn(query_layer,
+            #                     key_layer,
+            #                     value_layer,
+            #                     masked=True)
+
         else:
             if attention_mask is not None:
                 attention_mask = ~attention_mask
-            context_layer = torch.nn.functional.scaled_dot_product_attention(query_layer,
-                                                                             key_layer,
-                                                                             value_layer,
-                                                                             attention_mask)
+            # print(attention_mask)
+            assert attention_mask is None
+            from bigdl.llm.transformers.models.flash_attention import ggml_flash_attn
+            # context_layer = torch.nn.functional.scaled_dot_product_attention(query_layer,
+            #                                                                  key_layer,
+            #                                                                  value_layer,
+            #                                                                  attention_mask)
+            context_layer = ggml_flash_attn(query_layer,
+                                            key_layer,
+                                            value_layer,
+                                            masked=False)
         context_layer = context_layer.permute(2, 0, 1, 3)
         new_context_layer_shape = context_layer.size()[:-2] + (self.hidden_size_per_partition,)
         context_layer = context_layer.reshape(*new_context_layer_shape)

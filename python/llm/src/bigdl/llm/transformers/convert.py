@@ -87,8 +87,16 @@ def is_linear_module(module):
     mp_group = None
 
     is_awq = is_auto_awq_available() and isinstance(module, WQLinear_GEMM)
+    from vllm.model_executor.layers.linear import ColumnParallelLinear, RowParallelLinear
+    from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 
-    if is_auto_gptq_available() and isinstance(module, QuantLinearCudaOld):
+    if isinstance(module, ColumnParallelLinear) or isinstance(module, RowParallelLinear):
+        in_features = module.input_size
+        out_features = module.output_size
+        result = True
+        mp_group = None
+        
+    elif is_auto_gptq_available() and isinstance(module, QuantLinearCudaOld):
         in_features = module.infeatures
         out_features = module.outfeatures
         mp_group = None

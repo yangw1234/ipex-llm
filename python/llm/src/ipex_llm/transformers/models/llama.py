@@ -348,6 +348,7 @@ def fuse_qkv_weight_xetla(q_proj, k_proj, v_proj, qtype):
 
 
 def should_use_xetla_mm_qkv(self, device):
+    return False
     full_attn = self.q_proj.out_len == self.k_proj.out_len == self.v_proj.out_len
     supported_qtype = self.q_proj.qtype == SYM_INT4 and full_attn
     supported_qtype = supported_qtype or self.q_proj.qtype == FP8E5

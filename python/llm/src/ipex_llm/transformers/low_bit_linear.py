@@ -114,7 +114,8 @@ def ggml_xpu_to_ipex_llm_xetla(ggml_weight, weight_shape, qtype):
 
         qweight_0 = qweight_0.reshape(n, -1, Q4_0//2)
         qweight_1 = qweight_1.reshape(n, -1, Q4_0//2)
-        qweight = torch.cat([qweight_0, qweight_1], dim=-1)
+        qweight = torch.cat([qweight_0, qweight_1], dim=-1).view(torch.int8) - 8
+        qweight = qweight.view(torch.uint8)
         # qweight = qweight.reshape(n, k//16, 2, 8)
         # qweight = qweight.bitwise_left_shift(
         #     torch.tensor([0, 4], dtype=torch.uint8, device=ggml_weight.device).reshape(1, 1, 2, 1))
@@ -599,9 +600,9 @@ class LowBitLinear(nn.Linear):
         self.out_len = output_features
         self.weight_shape = (self.out_len, self.in_len)
         self.weight_length = self.out_len * self.in_len
-        self.weight_size = self.weight_length / 2
-        self.zeros_size = self.weight_length / 64 / 2
-        self.scales_size = self.weight_length / 64 * 2
+        self.weight_size = self.weight_length // 2
+        self.zeros_size = self.weight_length // 64 // 2
+        self.scales_size = self.weight_length // 64 * 2
         self.qtype = qtype
         self.conver_to_half = conver_to_half
         self.mp_group = mp_group
@@ -693,12 +694,15 @@ class LowBitLinear(nn.Linear):
             elif self.enable_xetla:
                 x_2d = x_2d.half()
                 # result = linear_q4_0.mm_xetla(x_2d, self.weight.data, self.qtype)
-                weight = self.weight.data[:self.weight_size]
+                weight = self.weight.data[:self.weight_size].view(self.in_len, self.out_len//2)
                 zeros = self.weight.data[self.weight_size:self.weight_size+self.zeros_size]
                 scales = self.weight.data[self.weight_size+self.zeros_size:].view(torch.float16)
                 result = torch.ops.torch_ipex.mm_int4(
                     x_2d, weight, scales, zeros, 64
                     )
+                # print(x_2d.shape)
+                # print(weight.shape)
+                # print(result.shape)
             else:
                 # inference path
                 # current workaround to reduce first token latency of fp32 input
